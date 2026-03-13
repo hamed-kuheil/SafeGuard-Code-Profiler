@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SafeGuard-Code Profiler Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;500;600&display=swap');
+  :root {
+    --bg: #0d0f14; --card: #13161d; --border: #1e2433;
+    --text: #c9d1d9; --muted: #6e7681; --accent: #58a6ff;
+    --critical: #ff4d4d; --high: #ffa500; --medium: #58a6ff; --low: #7ee787;
+    --good: #7ee787; --warn: #ffa500; --bad: #ff4d4d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; padding: 2rem; line-height: 1.6; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+  .logo { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 800; color: var(--accent); letter-spacing: -1px; }
+  .logo span { color: var(--text); }
+  .meta { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; text-align: center; }
+  .stat-num { font-family: 'JetBrains Mono', monospace; font-size: 2rem; font-weight: 800; }
+  .stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .file-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+  .file-name { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--accent); word-break: break-all; margin-bottom: 0.4rem; }
+  .lang-tag { display: inline-block; font-size: 0.7rem; background: var(--border); border-radius: 4px; padding: 2px 8px; margin-bottom: 0.8rem; }
+  .score-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 0.8rem; }
+  .score-row > span:first-child { width: 70px; color: var(--muted); }
+  .bar-bg { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+  .bar-fill.good { background: var(--good); }
+  .bar-fill.warn { background: var(--warn); }
+  .bar-fill.bad  { background: var(--bad); }
+  .score-num { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; width: 32px; text-align: right; }
+  .score-num.good { color: var(--good); } .score-num.warn { color: var(--warn); } .score-num.bad { color: var(--bad); }
+  .finding-count { font-size: 0.75rem; color: var(--muted); margin-top: 0.5rem; }
+  h2 { font-family: 'JetBrains Mono', monospace; font-size: 1rem; color: var(--accent); margin-bottom: 1rem; letter-spacing: 1px; text-transform: uppercase; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; background: var(--card); border-radius: 8px; overflow: hidden; }
+  th { background: var(--border); padding: 0.7rem 0.8rem; text-align: left; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  td { padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  code { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; background: rgba(255,255,255,0.05); padding: 2px 5px; border-radius: 3px; }
+  .sev-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+  .sev-badge.critical { color: var(--critical); background: rgba(255,77,77,0.1); }
+  .sev-badge.high { color: var(--high); background: rgba(255,165,0,0.1); }
+  .sev-badge.medium { color: var(--medium); background: rgba(88,166,255,0.1); }
+  .sev-badge.low { color: var(--low); background: rgba(126,231,135,0.1); }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; }
+
+  /* ── Author Section ── */
+  .author-section {
+    margin-top: 3rem;
+    padding: 2rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .author-section::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), #a371f7, var(--good));
+  }
+  .author-section h2 {
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .author-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.8rem;
+    flex-wrap: wrap;
+  }
+  .author-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent) 0%, #a371f7 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px var(--border), 0 0 24px rgba(88,166,255,0.15);
+    letter-spacing: -2px;
+  }
+  .author-info { flex: 1; min-width: 220px; }
+  .author-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--accent);
+    margin-bottom: 0.15rem;
+    letter-spacing: -0.5px;
+  }
+  .author-tagline {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    font-style: italic;
+  }
+  .author-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .author-detail-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+  }
+  .detail-icon {
+    font-size: 1rem;
+    width: 22px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .detail-label {
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    width: 80px;
+    flex-shrink: 0;
+  }
+  .detail-value {
+    color: var(--text);
+  }
+  .detail-value .highlight {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .author-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1.2rem;
+  }
+  .author-tag {
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid;
+    letter-spacing: 0.3px;
+  }
+  .author-tag.blue   { color: var(--accent);    border-color: rgba(88,166,255,0.35);  background: rgba(88,166,255,0.07);  }
+  .author-tag.purple { color: #a371f7;           border-color: rgba(163,113,247,0.35); background: rgba(163,113,247,0.07); }
+  .author-tag.green  { color: var(--good);       border-color: rgba(126,231,135,0.35); background: rgba(126,231,135,0.07); }
+  .author-divider {
+    width: 1px;
+    background: var(--border);
+    align-self: stretch;
+    flex-shrink: 0;
+  }
+  .author-quote {
+    flex: 1;
+    min-width: 200px;
+    padding: 1rem 1.25rem;
+    border-left: 2px solid rgba(88,166,255,0.3);
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-style: italic;
+    line-height: 1.7;
+    display: flex;
+    align-items: center;
+  }
+  .author-quote::before {
+    content: '"';
+    font-size: 3rem;
+    color: rgba(88,166,255,0.2);
+    font-family: Georgia, serif;
+    line-height: 1;
+    margin-right: 0.5rem;
+    align-self: flex-start;
+  }
+
+  /* Arabic / bilingual label */
+  .bilingual-title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .bilingual-title .ar {
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-style: normal;
+    direction: rtl;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">SafeGuard<span>-Code Profiler</span></div>
+  <div class="meta">Generated: 2026-03-13 13:50:18 &nbsp;|&nbsp; Files: 6 &nbsp;|&nbsp; Findings: 62</div>
+</header>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-num" style="color:var(--bad)">18</div><div class="stat-label">Critical</div></div>
+  <div class="stat-card"><div class="stat-num" style="color:var(--warn)">27</div><div class="stat-label">High</div></div>
+  <div class="stat-card"><div class="stat-num" style="color:var(--medium)">6</div><div class="stat-label">Medium</div></div>
+  <div class="stat-card"><div class="stat-num" style="color:var(--good)">11</div><div class="stat-label">Low</div></div>
+  <div class="stat-card"><div class="stat-num" style="color:var(--accent)">8.2</div><div class="stat-label">Avg Efficiency</div></div>
+  <div class="stat-card"><div class="stat-num" style="color:var(--accent)">2.6</div><div class="stat-label">Avg Ethics</div></div>
+</div>
+
+<h2>📄 File Scores</h2>
+<div class="files-grid">
+        <div class="file-card">
+            <div class="file-name">examples/java/GoodExample.java</div>
+            <div class="lang-tag">JAVA</div>
+            <div class="score-row">
+                <span>Efficiency</span>
+                <div class="bar-bg"><div class="bar-fill good" style="width:85.0%"></div></div>
+                <span class="score-num good">8.5</span>
+            </div>
+            <div class="score-row">
+                <span>Ethics</span>
+                <div class="bar-bg"><div class="bar-fill good" style="width:82.0%"></div></div>
+                <span class="score-num good">8.2</span>
+            </div>
+            <div class="finding-count">2 finding(s)</div>
+        </div>
+        <div class="file-card">
+            <div class="file-name">examples/java/BadExample.java</div>
+            <div class="lang-tag">JAVA</div>
+            <div class="score-row">
+                <span>Efficiency</span>
+                <div class="bar-bg"><div class="bar-fill warn" style="width:69.0%"></div></div>
+                <span class="score-num warn">6.9</span>
+            </div>
+            <div class="score-row">
+                <span>Ethics</span>
+                <div class="bar-bg"><div class="bar-fill bad" style="width:10.0%"></div></div>
+                <span class="score-num bad">1.0</span>
+            </div>
+            <div class="finding-count">13 finding(s)</div>
+        </div>
+        <div class="file-card">
+            <div class="file-name">examples/python/bad_example.py</div>
+            <div class="lang-tag">PYTHON</div>
+            <div class="score-row">
+                <span>Efficiency</span>
+                <div class="bar-bg"><div class="bar-fill good" style="width:86.0%"></div></div>
+                <span class="score-num good">8.6</span>
+            </div>
+            <div class="score-row">
+                <span>Ethics</span>
+                <div class="bar-bg"><div class="bar-fill bad" style="width:10.0%"></div></div>
+                <span class="score-num bad">1.0</span>
+            </div>
+            <div class="finding-count">21 finding(s)</div>
+        </div>
+        <div class="file-card">
+            <div class="file-name">examples/python/good_example.py</div>
+            <div class="lang-tag">PYTHON</div>
+            <div class="score-row">
+                <span>Efficiency</span>
+                <div class="bar-bg"><div class="bar-fill good" style="width:100.0%"></div></div>
+                <span class="score-num good">10.0</span>
+            </div>
+            <div class="score-row">
+                <span>Ethics</span>
+                <div class="bar-bg"><div class="bar-fill bad" style="width:28.0%"></div></div>
+                <span class="score-num bad">2.8</span>
+            </div>
+            <div class="finding-count">4 finding(s)</div>
+        </div>
+        <div class="file-card">
+            <div class="file-name">examples/cpp/good_example.cpp</div>
+            <div class="lang-tag">CPP</div>
+            <div class="score-row">
+                <span>Efficiency</span>
+                <div class="bar-bg"><div class="bar-fill good" style="width:92.0%"></div></div>
+                <span class="score-num good">9.2</span>
+            </div>
+            <div class="score-row">
+                <span>Ethics</span>
+                <div class="bar-bg"><div class="bar-fill bad" style="width:14.0%"></div></div>
+                <span class="score-num bad">1.4</span>
+            </div>
+            <div class="finding-count">5 finding(s)</div>
+        </div>
+        <div class="file-card">
+            <div class="file-name">examples/cpp/bad_example.cpp</div>
+            <div class="lang-tag">CPP</div>
+            <div class="score-row">
+                <span>Efficiency</span>
+                <div class="bar-bg"><div class="bar-fill warn" style="width:62.0%"></div></div>
+                <span class="score-num warn">6.2</span>
+            </div>
+            <div class="score-row">
+                <span>Ethics</span>
+                <div class="bar-bg"><div class="bar-fill bad" style="width:10.0%"></div></div>
+                <span class="score-num bad">1.0</span>
+            </div>
+            <div class="finding-count">17 finding(s)</div>
+        </div></div>
+
+<h2>🔍 All Findings</h2>
+<table>
+  <thead><tr><th>File</th><th>Severity</th><th>Rule</th><th>Category</th><th>Location</th><th>Code Snippet</th><th>Message</th></tr></thead>
+  <tbody>
+            <tr class="sev-high">
+                <td>examples/java/GoodExample.java</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>EFF-001</td>
+                <td>Efficiency</td>
+                <td>Line 25</td>
+                <td><code>for (int i = 0; i &lt; n; i++) {</code></td>
+                <td>Nested loop detected — potential O(n²) or worse time complexity. Consider algorithmic alternatives.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/java/GoodExample.java</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-004</td>
+                <td>Ethics</td>
+                <td>Line 46</td>
+                <td><code>// No name, email, race, religion, biometric fields</code></td>
+                <td>Biometric identifier field detected. Ensure GDPR/CCPA compliance and explicit consent handling.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-001</td>
+                <td>Security</td>
+                <td>Line 11</td>
+                <td><code>private static final String PASSWORD = &quot;admin_pass_2024&quot;;</code></td>
+                <td>Hardcoded password detected. Use environment variables or a secrets manager.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-001</td>
+                <td>Security</td>
+                <td>Line 46</td>
+                <td><code>System.out.println(&quot;Login attempt: user=&quot; + user + &quot; password=&quot; + password);</code></td>
+                <td>Hardcoded password detected. Use environment variables or a secrets manager.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-002</td>
+                <td>Security</td>
+                <td>Line 12</td>
+                <td><code>private static final String API_KEY  = &quot;live_key_abcdef1234567890&quot;;</code></td>
+                <td>Hardcoded API key or token found. Rotate immediately and use env-vars/vault storage.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>ETH-003</td>
+                <td>Ethics</td>
+                <td>Line 75</td>
+                <td><code>String testSSN = &quot;987-65-4321&quot;;</code></td>
+                <td>Potential SSN/National ID format detected. This is sensitive PII — remove immediately.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>EFF-001</td>
+                <td>Efficiency</td>
+                <td>Line 20</td>
+                <td><code>for (int i = 0; i &lt; n; i++) {</code></td>
+                <td>Nested loop detected — potential O(n²) or worse time complexity. Consider algorithmic alternatives.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-001</td>
+                <td>Ethics</td>
+                <td>Line 15</td>
+                <td><code>private static final String ADMIN_EMAIL = &quot;bob.smith@company.org&quot;;</code></td>
+                <td>Hardcoded email address (PII) detected. Remove from source code; use anonymized test data.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-002</td>
+                <td>Ethics</td>
+                <td>Line 75</td>
+                <td><code>String testSSN = &quot;987-65-4321&quot;;</code></td>
+                <td>Possible hardcoded phone number (PII). Replace with synthetic/anonymized test fixtures.</td>
+            </tr>
+            <tr class="sev-medium">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge medium">MEDIUM</td>
+                <td>EFF-008</td>
+                <td>Efficiency</td>
+                <td>Line 57</td>
+                <td><code>// EFF-008: Unconditional while(true)</code></td>
+                <td>Unconditional while(true) loop — ensure a break/return path exists to avoid infinite execution.</td>
+            </tr>
+            <tr class="sev-medium">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge medium">MEDIUM</td>
+                <td>EFF-008</td>
+                <td>Efficiency</td>
+                <td>Line 59</td>
+                <td><code>while (true) {</code></td>
+                <td>Unconditional while(true) loop — ensure a break/return path exists to avoid infinite execution.</td>
+            </tr>
+            <tr class="sev-medium">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge medium">MEDIUM</td>
+                <td>SEC-011</td>
+                <td>Security</td>
+                <td>Line 51</td>
+                <td><code>Class&lt;?&gt; clazz = Class.forName(obj.getClass().getName());</code></td>
+                <td>Java reflection detected — can bypass access controls. Audit usage carefully.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge low">LOW</td>
+                <td>SEC-010</td>
+                <td>Security</td>
+                <td>Line 66</td>
+                <td><code>// TODO: Remove hardcoded credentials before release</code></td>
+                <td>Developer note left in production code — review before deployment.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge low">LOW</td>
+                <td>SEC-010</td>
+                <td>Security</td>
+                <td>Line 67</td>
+                <td><code>// FIXME: SQL injection vulnerability in getUser()</code></td>
+                <td>Developer note left in production code — review before deployment.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/java/BadExample.java</td>
+                <td class="sev-badge low">LOW</td>
+                <td>SEC-010</td>
+                <td>Security</td>
+                <td>Line 68</td>
+                <td><code>// HACK: Auth check disabled for development</code></td>
+                <td>Developer note left in production code — review before deployment.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-001</td>
+                <td>Security</td>
+                <td>Line 11</td>
+                <td><code>password = &quot;admin123!&quot;</code></td>
+                <td>Hardcoded password detected. Use environment variables or a secrets manager.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-002</td>
+                <td>Security</td>
+                <td>Line 12</td>
+                <td><code>api_key = &quot;sk-live-AbCdEf1234567890XYZPQR&quot;</code></td>
+                <td>Hardcoded API key or token found. Rotate immediately and use env-vars/vault storage.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-007</td>
+                <td>Security</td>
+                <td>Line 53</td>
+                <td><code>os.system(&quot;ls &quot; + user_input)    # Command injection — never concatenate</code></td>
+                <td>Shell command with string concatenation — command injection risk. Avoid shell=True and sanitize inputs.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-007</td>
+                <td>Security</td>
+                <td>Line 54</td>
+                <td><code>subprocess.call(&quot;echo &quot; + user_input, shell=True)</code></td>
+                <td>Shell command with string concatenation — command injection risk. Avoid shell=True and sanitize inputs.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>ETH-003</td>
+                <td>Ethics</td>
+                <td>Line 19</td>
+                <td><code>test_ssn = &quot;123-45-6789&quot;</code></td>
+                <td>Potential SSN/National ID format detected. This is sensitive PII — remove immediately.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>ETH-007</td>
+                <td>Ethics</td>
+                <td>Line 71</td>
+                <td><code>print(f&quot;Authenticating user: {user} with password: {pwd}&quot;)  # NEVER log passwords</code></td>
+                <td>Sensitive data being logged/printed. This exposes PII in logs — redact before output.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>SEC-008</td>
+                <td>Security</td>
+                <td>Line 56</td>
+                <td><code># SEC-008: eval() usage</code></td>
+                <td>eval()/exec() executes arbitrary code — remove if possible or sanitize input strictly.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>SEC-008</td>
+                <td>Security</td>
+                <td>Line 58</td>
+                <td><code>return eval(expression)          # Arbitrary code execution risk!</code></td>
+                <td>eval()/exec() executes arbitrary code — remove if possible or sanitize input strictly.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>SEC-012</td>
+                <td>Security</td>
+                <td>Line 80</td>
+                <td><code>return pickle.load(f)        # Arbitrary code execution on untrusted data</code></td>
+                <td>pickle.load() on untrusted data enables arbitrary code execution. Use JSON/msgpack instead.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-001</td>
+                <td>Ethics</td>
+                <td>Line 16</td>
+                <td><code>admin_email = &quot;alice.johnson@corp.com&quot;</code></td>
+                <td>Hardcoded email address (PII) detected. Remove from source code; use anonymized test data.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-001</td>
+                <td>Ethics</td>
+                <td>Line 63</td>
+                <td><code>&quot;email&quot;:  &quot;jane@example.com&quot;,</code></td>
+                <td>Hardcoded email address (PII) detected. Remove from source code; use anonymized test data.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-002</td>
+                <td>Ethics</td>
+                <td>Line 19</td>
+                <td><code>test_ssn = &quot;123-45-6789&quot;</code></td>
+                <td>Possible hardcoded phone number (PII). Replace with synthetic/anonymized test fixtures.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-004</td>
+                <td>Ethics</td>
+                <td>Line 73</td>
+                <td><code># ETH-004: Biometric field</code></td>
+                <td>Biometric identifier field detected. Ensure GDPR/CCPA compliance and explicit consent handling.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-004</td>
+                <td>Ethics</td>
+                <td>Line 74</td>
+                <td><code>def store_biometric(user_id, face_id, fingerprint):</code></td>
+                <td>Biometric identifier field detected. Ensure GDPR/CCPA compliance and explicit consent handling.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-004</td>
+                <td>Ethics</td>
+                <td>Line 75</td>
+                <td><code>print(f&quot;Storing biometric for {user_id}: {face_id}&quot;)   # No consent check!</code></td>
+                <td>Biometric identifier field detected. Ensure GDPR/CCPA compliance and explicit consent handling.</td>
+            </tr>
+            <tr class="sev-medium">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge medium">MEDIUM</td>
+                <td>EFF-005</td>
+                <td>Efficiency</td>
+                <td>Line 32</td>
+                <td><code>f = open(path, &quot;r&quot;)              # No 'with' block — risk of unclosed handle</code></td>
+                <td>File opened without context manager (with ... as). Risk of unclosed file handle.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge low">LOW</td>
+                <td>EFF-010</td>
+                <td>Efficiency</td>
+                <td>Line 24</td>
+                <td><code>for i in range(len(data)):       # O(n^2) — use a set instead</code></td>
+                <td>Length/size computed inside loop condition — cache result before loop for clarity.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge low">LOW</td>
+                <td>EFF-010</td>
+                <td>Efficiency</td>
+                <td>Line 25</td>
+                <td><code>for j in range(len(data)):</code></td>
+                <td>Length/size computed inside loop condition — cache result before loop for clarity.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge low">LOW</td>
+                <td>SEC-010</td>
+                <td>Security</td>
+                <td>Line 83</td>
+                <td><code># TODO: Add input validation here</code></td>
+                <td>Developer note left in production code — review before deployment.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge low">LOW</td>
+                <td>SEC-010</td>
+                <td>Security</td>
+                <td>Line 84</td>
+                <td><code># FIXME: This crashes with empty list</code></td>
+                <td>Developer note left in production code — review before deployment.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/python/bad_example.py</td>
+                <td class="sev-badge low">LOW</td>
+                <td>SEC-010</td>
+                <td>Security</td>
+                <td>Line 85</td>
+                <td><code># HACK: Skipping auth for testing</code></td>
+                <td>Developer note left in production code — review before deployment.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/good_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-004</td>
+                <td>Ethics</td>
+                <td>Line 57</td>
+                <td><code># No race, gender, religion, biometric fields stored</code></td>
+                <td>Biometric identifier field detected. Ensure GDPR/CCPA compliance and explicit consent handling.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/good_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-004</td>
+                <td>Ethics</td>
+                <td>Line 71</td>
+                <td><code># ✓ Consent-gated biometric collection</code></td>
+                <td>Biometric identifier field detected. Ensure GDPR/CCPA compliance and explicit consent handling.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/good_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-004</td>
+                <td>Ethics</td>
+                <td>Line 75</td>
+                <td><code>logger.error(&quot;Biometric storage refused: no consent token for user %s&quot;, user_id)</code></td>
+                <td>Biometric identifier field detected. Ensure GDPR/CCPA compliance and explicit consent handling.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/python/good_example.py</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-004</td>
+                <td>Ethics</td>
+                <td>Line 79</td>
+                <td><code>logger.info(&quot;Biometric stored (encrypted) for user %s&quot;, user_id)</code></td>
+                <td>Biometric identifier field detected. Ensure GDPR/CCPA compliance and explicit consent handling.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/cpp/good_example.cpp</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-003</td>
+                <td>Security</td>
+                <td>Line 29</td>
+                <td><code>// ✓ Safe string input with bounds — no gets(), no strcpy()</code></td>
+                <td>gets() is banned (CVE-prone, no bounds checking). Replace with fgets() or std::getline().</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/cpp/good_example.cpp</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>ETH-007</td>
+                <td>Ethics</td>
+                <td>Line 76</td>
+                <td><code>cout &lt;&lt; &quot;[LOG] User:&quot; &lt;&lt; userId &lt;&lt; &quot; Action:&quot; &lt;&lt; action &lt;&lt; &quot;\n&quot;;</code></td>
+                <td>Sensitive data being logged/printed. This exposes PII in logs — redact before output.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/cpp/good_example.cpp</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>SEC-004</td>
+                <td>Security</td>
+                <td>Line 29</td>
+                <td><code>// ✓ Safe string input with bounds — no gets(), no strcpy()</code></td>
+                <td>strcpy() has no bounds checking — buffer overflow risk. Use strncpy() or std::string.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/cpp/good_example.cpp</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-004</td>
+                <td>Ethics</td>
+                <td>Line 71</td>
+                <td><code>// No race, religion, or biometric fields</code></td>
+                <td>Biometric identifier field detected. Ensure GDPR/CCPA compliance and explicit consent handling.</td>
+            </tr>
+            <tr class="sev-medium">
+                <td>examples/cpp/good_example.cpp</td>
+                <td class="sev-badge medium">MEDIUM</td>
+                <td>EFF-004</td>
+                <td>Efficiency</td>
+                <td>Line 41</td>
+                <td><code>std::ifstream configFile(path);</code></td>
+                <td>File stream opened but no explicit .close() detected in scope. Risk of resource leak.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-001</td>
+                <td>Security</td>
+                <td>Line 11</td>
+                <td><code>const string DB_PASSWORD = &quot;super_secret_pass123&quot;;</code></td>
+                <td>Hardcoded password detected. Use environment variables or a secrets manager.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-002</td>
+                <td>Security</td>
+                <td>Line 12</td>
+                <td><code>const string API_KEY     = &quot;sk-abcdef1234567890xyztoken&quot;;</code></td>
+                <td>Hardcoded API key or token found. Rotate immediately and use env-vars/vault storage.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>SEC-003</td>
+                <td>Security</td>
+                <td>Line 31</td>
+                <td><code>gets(dest);       // SEC-003: BANNED function — buffer overflow risk</code></td>
+                <td>gets() is banned (CVE-prone, no bounds checking). Replace with fgets() or std::getline().</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>ETH-003</td>
+                <td>Ethics</td>
+                <td>Line 88</td>
+                <td><code>printUserInfo(&quot;user@example.com&quot;, &quot;123-45-6789&quot;);  // ETH-003: SSN format</code></td>
+                <td>Potential SSN/National ID format detected. This is sensitive PII — remove immediately.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>ETH-007</td>
+                <td>Ethics</td>
+                <td>Line 16</td>
+                <td><code>cout &lt;&lt; &quot;User email: &quot; &lt;&lt; email &lt;&lt; endl;</code></td>
+                <td>Sensitive data being logged/printed. This exposes PII in logs — redact before output.</td>
+            </tr>
+            <tr class="sev-critical">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge critical">CRITICAL</td>
+                <td>ETH-007</td>
+                <td>Ethics</td>
+                <td>Line 66</td>
+                <td><code>cout &lt;&lt; &quot;Alerting: &quot; &lt;&lt; adminEmail &lt;&lt; endl;</code></td>
+                <td>Sensitive data being logged/printed. This exposes PII in logs — redact before output.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>EFF-001</td>
+                <td>Efficiency</td>
+                <td>Line 35</td>
+                <td><code>for (int i = 0; i &lt; 100; i++) {</code></td>
+                <td>Nested loop detected — potential O(n²) or worse time complexity. Consider algorithmic alternatives.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>EFF-003</td>
+                <td>Efficiency</td>
+                <td>Line 22</td>
+                <td><code>int* buffer = new int[n];   // Allocated but never deleted</code></td>
+                <td>'new' allocation detected without a visible 'delete' — possible memory leak. Prefer smart pointers.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>SEC-004</td>
+                <td>Security</td>
+                <td>Line 44</td>
+                <td><code>strcpy(dest, src);   // Replace with strncpy or std::string</code></td>
+                <td>strcpy() has no bounds checking — buffer overflow risk. Use strncpy() or std::string.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>SEC-005</td>
+                <td>Security</td>
+                <td>Line 49</td>
+                <td><code>sprintf(buf, &quot;Error code: %d for user admin&quot;, code);</code></td>
+                <td>sprintf() lacks bounds checking. Replace with snprintf() with explicit buffer size.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-001</td>
+                <td>Ethics</td>
+                <td>Line 64</td>
+                <td><code>string adminEmail = &quot;john.doe@company.com&quot;;</code></td>
+                <td>Hardcoded email address (PII) detected. Remove from source code; use anonymized test data.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-001</td>
+                <td>Ethics</td>
+                <td>Line 88</td>
+                <td><code>printUserInfo(&quot;user@example.com&quot;, &quot;123-45-6789&quot;);  // ETH-003: SSN format</code></td>
+                <td>Hardcoded email address (PII) detected. Remove from source code; use anonymized test data.</td>
+            </tr>
+            <tr class="sev-high">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge high">HIGH</td>
+                <td>ETH-002</td>
+                <td>Ethics</td>
+                <td>Line 88</td>
+                <td><code>printUserInfo(&quot;user@example.com&quot;, &quot;123-45-6789&quot;);  // ETH-003: SSN format</code></td>
+                <td>Possible hardcoded phone number (PII). Replace with synthetic/anonymized test fixtures.</td>
+            </tr>
+            <tr class="sev-medium">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge medium">MEDIUM</td>
+                <td>EFF-004</td>
+                <td>Efficiency</td>
+                <td>Line 54</td>
+                <td><code>ifstream configFile(&quot;config.txt&quot;);</code></td>
+                <td>File stream opened but no explicit .close() detected in scope. Risk of resource leak.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge low">LOW</td>
+                <td>SEC-010</td>
+                <td>Security</td>
+                <td>Line 78</td>
+                <td><code>// TODO: Add input validation before release</code></td>
+                <td>Developer note left in production code — review before deployment.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge low">LOW</td>
+                <td>SEC-010</td>
+                <td>Security</td>
+                <td>Line 79</td>
+                <td><code>// FIXME: This function crashes on empty input</code></td>
+                <td>Developer note left in production code — review before deployment.</td>
+            </tr>
+            <tr class="sev-low">
+                <td>examples/cpp/bad_example.cpp</td>
+                <td class="sev-badge low">LOW</td>
+                <td>SEC-010</td>
+                <td>Security</td>
+                <td>Line 80</td>
+                <td><code>// HACK: Bypassing auth check for now</code></td>
+                <td>Developer note left in production code — review before deployment.</td>
+            </tr></tbody>
+</table>
+
+
+<!-- ── About the Author ─────────────────────────────────────────────── -->
+<section class="author-section">
+  <h2>
+    <span>👤</span>
+    <span class="bilingual-title">
+      About the Author
+      <span class="ar">عن المطور</span>
+    </span>
+  </h2>
+
+  <div class="author-card">
+
+    <div class="author-avatar">HK</div>
+
+    <div class="author-info">
+      <div class="author-name">Hamed Hazem Kuheil</div>
+      <div class="author-tagline">حامد حازم كحيل &nbsp;·&nbsp; Builder of SafeGuard-Code Profiler</div>
+
+      <div class="author-details">
+        <div class="author-detail-row">
+          <span class="detail-icon">🎓</span>
+          <span class="detail-label">Education</span>
+          <span class="detail-value">
+            <span class="highlight">Computer &amp; Software Engineering</span> Student
+          </span>
+        </div>
+        <div class="author-detail-row">
+          <span class="detail-icon">🏅</span>
+          <span class="detail-label">Role</span>
+          <span class="detail-value">
+            Class Representative <span class="highlight">(CR)</span> 🎓
+          </span>
+        </div>
+        <div class="author-detail-row">
+          <span class="detail-icon">🔭</span>
+          <span class="detail-label">Focus</span>
+          <span class="detail-value">
+            AI Ethics, Data Safety &amp; Hardware Performance
+          </span>
+        </div>
+      </div>
+
+      <div class="author-tags">
+        <span class="author-tag blue"># AI Ethics</span>
+        <span class="author-tag blue"># Data Safety</span>
+        <span class="author-tag purple"># Hardware Performance</span>
+        <span class="author-tag purple"># Static Analysis</span>
+        <span class="author-tag green"># Open Source</span>
+        <span class="author-tag green"># C++ · Java · Python</span>
+      </div>
+    </div>
+
+    <div class="author-divider"></div>
+
+    <div class="author-quote">
+      Good code isn't just code that runs — it's code that respects
+      the hardware beneath it, the people whose data it touches,
+      and the society it operates within.
+    </div>
+
+  </div>
+</section>
+
+<footer>SafeGuard-Code Profiler v1.0.0 &nbsp;·&nbsp; Bridging hardware awareness with software ethics. &nbsp;·&nbsp; Built by <strong style="color:var(--accent)">Hamed Hazem Kuheil</strong></footer>
+</body>
+</html>
